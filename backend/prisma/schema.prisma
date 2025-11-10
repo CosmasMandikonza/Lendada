@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+model User {
+  id               String   @id @default(uuid())
+  walletAddress    String   @unique
+  identityNFT      String?  @unique
+  zkProofHash      String?
+  kycLevel         Int      @default(0)
+  creditScore      Int      @default(0)
+  reputationPoints Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  loansAsBorrower  Loan[]   @relation("Borrower")
+  loansAsLender    Loan[]   @relation("Lender")
+  transactions     Transaction[]
+  @@index([walletAddress])
+}
+model Loan {
+  id           String   @id @default(uuid())
+  borrowerId   String
+  lenderId     String?
+  principal    BigInt
+  interestRate Int
+  duration     Int
+  collateral   BigInt
+  status       LoanStatus
+  txHash       String?
+  utxoRef      String?  @unique
+  createdAt    DateTime @default(now())
+  fundedAt     DateTime?
+  claimedAt    DateTime?
+  repaidAt     DateTime?
+  dueAt        DateTime
+  updatedAt    DateTime @updatedAt
+  borrower     User     @relation("Borrower", fields: [borrowerId], references: [id])
+  lender       User?    @relation("Lender", fields: [lenderId], references: [id])
+  transactions Transaction[]
+  @@index([borrowerId])
+  @@index([lenderId])
+  @@index([status])
+}
+enum LoanStatus {
+  PENDING
+  FUNDED
+  ACTIVE
+  REPAID
+  DEFAULTED
+  CANCELLED
+}
+model Transaction {
+  id        String   @id @default(uuid())
+  userId    String
+  loanId    String?
+  type      TransactionType
+  amount    BigInt
+  txHash    String   @unique
+  status    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  loan      Loan?    @relation(fields: [loanId], references: [id])
+  @@index([userId])
+  @@index([loanId])
+  @@index([txHash])
+}
+enum TransactionType {
+  LOAN_CREATE
+  LOAN_FUND
+  LOAN_CLAIM
+  LOAN_REPAY
+  COLLATERAL_CLAIM
+  IDENTITY_MINT
+  REPUTATION_UPDATE
+}
+model CreditCheck {
+  id            String   @id @default(uuid())
+  walletAddress String
+  score         Int
+  riskLevel     String
+  maxLoanAmount BigInt
+  interestRate  Int
+  jobId         String   @unique
+  createdAt     DateTime @default(now())
+  @@index([walletAddress])
+}

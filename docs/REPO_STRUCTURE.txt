@@ -1,0 +1,30 @@
+lendada/
+├── aiken-contracts/
+│   ├── lib/lendada/*.ak
+│   ├── validators/*.ak
+│   ├── aiken.toml
+│   └── build.sh
+├── masumi-agent/
+│   ├── src/*.ts
+│   ├── package.json
+│   └── tsconfig.json
+├── backend/
+│   ├── prisma/schema.prisma
+│   ├── src/**/*
+│   ├── package.json
+│   └── tsconfig.json
+├── frontend/
+│   ├── src/**/*
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tailwind.config.js
+│   └── tsconfig.json
+├── docs/
+│   ├── DEMO_SCRIPT.md
+│   ├── SETUP_GUIDE.md
+│   ├── API.md
+│   └── REPO_STRUCTURE.txt
+├── .gitignore
+├── LICENSE
+└── README.md
