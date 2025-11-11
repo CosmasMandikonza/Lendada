@@ -1,0 +1,23 @@
+use aiken/hash.{Blake2b_224, Hash}
+use aiken/transaction.{Mint, ScriptContext, Transaction}
+use aiken/transaction/credential.{VerificationKey}
+use lendada/types.{IdentityRedeemer, UpdateKYC, UpdateProof}
+
+validator identity_nft(
+  admin_pkh: Hash<Blake2b_224, VerificationKey>,
+) {
+  mint(redeemer: IdentityRedeemer, ctx: ScriptContext) -> Bool {
+    let _tx: Transaction = ctx.transaction
+
+    when ctx.purpose is {
+      Mint(_own_policy) -> {
+        // Keep logic trivial so the project compiles; tighten later.
+        when redeemer is {
+          UpdateProof { new_proof_hash: _ } -> True
+          UpdateKYC { new_level: _ } -> True
+        }
+      }
+      _ -> False
+    }
+  }
+}

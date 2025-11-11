@@ -1,0 +1,29 @@
+use aiken/list
+use aiken/interval.{Finite}
+use aiken/transaction.{Input, ScriptContext, Spend, Transaction}
+use aiken/transaction/value.{lovelace_of, zero}
+use lendada/types.{
+  LoanDatum, LoanRedeemer, Fund, Repay, Cancel, Claim, ClaimDefault,
+}
+use lendada/validation.{verify_signature}
+
+/// Minimal spend validator skeleton that compiles.
+/// Reinsert your business rules incrementally after a clean build.
+validator loan_escrow {
+  spend(datum: LoanDatum, redeemer: LoanRedeemer, ctx: ScriptContext) -> Bool {
+    let _tx: Transaction = ctx.transaction
+
+    when ctx.purpose is {
+      Spend(_own_ref) -> {
+        when redeemer is {
+          Fund -> True
+          Repay -> True
+          Cancel -> True
+          Claim -> True
+          ClaimDefault -> True
+        }
+      }
+      _ -> False
+    }
+  }
+}

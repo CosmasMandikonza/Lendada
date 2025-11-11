@@ -1,0 +1,50 @@
+// Aiken reputation_token.ak 
+use aiken/hash.{Blake2b_224, Hash}
+use aiken/list
+use aiken/transaction.{Mint, ScriptContext, Transaction}
+use aiken/transaction/credential.{VerificationKey}
+use aiken/transaction/value.{from_minted_value, quantity_of, tokens}
+use lendada/types.{PenalizeDefault, ReputationRedeemer, UpdateReputation}
+use lendada/utils.{calculate_default_penalty, calculate_new_reputation}
+use lendada/validation.{verify_signature}
+
+validator {
+  fn reputation_token_policy(
+    redeemer: ReputationRedeemer,
+    ctx: ScriptContext,
+  ) -> Bool {
+    let tx: Transaction = ctx.transaction
+
+    when ctx.purpose is {
+      Mint(own_policy) -> {
+        when redeemer is {
+          UpdateReputation { loan_amount, repayment_time, due_time } -> {
+            // Verify user is updating their own reputation
+            expect Some(owner_pkh) = list.head(tx.extra_signatories)
+            expect verify_signature(tx.extra_signatories, owner_pkh)
+
+            // Calculate if repaid early
+            let repaid_early = repayment_time < due_time
+
+            // In a real implementation, we'd read the current reputation
+            // from a reference input and update it accordingly
+            // For now, we just verify the transaction is signed
+
+            True
+          }
+
+          PenalizeDefault { loan_amount } -> {
+            // Verify the penalty is being applied correctly
+            // This would typically be triggered by a loan escrow validator
+            // verifying that a default occurred
+
+            // In practice, we'd check that a loan UTxO was consumed
+            // and its status shows default
+            True
+          }
+        }
+      }
+      _ -> False
+    }
+  }
+}

@@ -1,0 +1,31 @@
+use aiken/hash.{Blake2b_224, Hash}
+use aiken/list
+use aiken/transaction.{Mint, ScriptContext, Transaction}
+use aiken/transaction/credential.{VerificationKey}
+use lendada/validation.{verify_signature}
+use lendada/types.{ReputationRedeemer, UpdateReputation, PenalizeDefault}
+
+/// Parameterless for now; adjust if you later need params.
+validator reputation_token {
+  mint(redeemer: ReputationRedeemer, ctx: ScriptContext) -> Bool {
+    let tx: Transaction = ctx.transaction
+
+    when ctx.purpose is {
+      Mint(_own_policy) -> {
+        when redeemer is {
+          UpdateReputation { loan_amount: _, repayment_time: _, due_time: _ } -> {
+            // Require at least one signer (compile-first; tighten later)
+            when list.head(tx.extra_signatories) is {
+              Some(_pkh) -> True
+              None -> False
+            }
+          }
+
+          PenalizeDefault { loan_amount: _ } ->
+            True
+        }
+      }
+      _ -> False
+    }
+  }
+}

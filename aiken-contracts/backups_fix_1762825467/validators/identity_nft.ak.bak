@@ -1,0 +1,29 @@
+use aiken/hash.{Blake2b_224, Hash}
+use aiken/list
+use aiken/transaction.{Mint, ScriptContext, Transaction}
+use aiken/transaction/credential.{VerificationKey}
+use lendada/validation.{verify_signature}
+use lendada/types.{IdentityRedeemer, UpdateKYC, UpdateProof}
+
+/// Parameterized minting policy that lets an admin update identity proofs/KYC.
+/// NOTE: keep it simple to compile; you can add real checks after we're green.
+validator identity_nft(
+  admin_pkh: Hash<Blake2b_224, VerificationKey>,
+) {
+  mint(redeemer: IdentityRedeemer, ctx: ScriptContext) -> Bool {
+    let tx: Transaction = ctx.transaction
+
+    when ctx.purpose is {
+      Mint(_own_policy) -> {
+        when redeemer is {
+          UpdateProof { new_proof_hash: _ } ->
+            verify_signature(tx.extra_signatories, admin_pkh)
+
+          UpdateKYC { new_level: _ } ->
+            verify_signature(tx.extra_signatories, admin_pkh)
+        }
+      }
+      _ -> False
+    }
+  }
+}

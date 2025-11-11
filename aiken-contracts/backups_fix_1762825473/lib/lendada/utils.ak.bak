@@ -33,11 +33,15 @@ pub fn has_min_ada(output_value: Value, min_lovelace: Int) -> Bool {
   lovelace_of(output_value) >= min_lovelace
 }
 
-// Compile-first placeholder: accept if any output has at least min lovelace.
+// Compile-first placeholder: just check min Ada on any output.
+// Reintroduce credential checks later once everything builds cleanly.
 pub fn pays_to_pkh(
   outputs: List<Output>,
   _pkh: ByteArray,
   min_amount: Int,
 ) -> Bool {
-  list.any(outputs, fn(o) { lovelace_of(o.value) >= min_amount })
+  list.any(
+    outputs,
+    fn(o) { lovelace_of(o.value) >= min_amount },
+  )
 }

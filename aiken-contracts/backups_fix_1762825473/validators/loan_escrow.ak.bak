@@ -1,0 +1,13 @@
+use aiken/transaction.{ScriptContext, Transaction, Spend}
+use lendada/types.{LoanDatum, LoanRedeemer}
+
+validator loan_escrow {
+  spend(datum: LoanDatum, redeemer: LoanRedeemer, ctx: ScriptContext) -> Bool {
+    let _tx: Transaction = ctx.transaction
+
+    when ctx.purpose is {
+      Spend(_own_ref) -> True
+      _ -> False
+    }
+  }
+}

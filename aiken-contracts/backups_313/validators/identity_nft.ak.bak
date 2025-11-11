@@ -1,0 +1,25 @@
+use aiken/hash.{Blake2b_224, Hash}
+use aiken/transaction.{ScriptContext, Transaction}
+use aiken/transaction/credential.{VerificationKey}
+use lendada/types.{IdentityRedeemer, UpdateKYC, UpdateProof}
+use lendada/validation.{verify_signature}
+
+pub type Params {
+  admin_pkh: Hash<Blake2b_224, VerificationKey>,
+}
+
+pub fn validator(params: Params, redeemer: IdentityRedeemer, ctx: ScriptContext) -> Bool {
+  let Params { admin_pkh } = params
+  let tx: Transaction = ctx.transaction
+
+  when redeemer is {
+    UpdateProof { new_proof_hash: _ } -> {
+      verify_signature(tx.extra_signatories, admin_pkh)
+    }
+
+    UpdateKYC { new_level } -> {
+      expect verify_signature(tx.extra_signatories, admin_pkh)
+      new_level >= 1 && new_level <= 5
+    }
+  }
+}

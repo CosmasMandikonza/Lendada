@@ -1,0 +1,96 @@
+use aiken/interval.{Finite, Interval, IntervalBound}
+use aiken/transaction.{Output, OutputReference, Transaction, Address}
+use aiken/list
+use aiken/transaction/value.{Value, lovelace_of}
+
+/// Calculate total interest for a loan
+pub fn calculate_interest(principal: Int, rate_bp: Int, duration_days: Int) -> Int {
+  // rate_bp is in basis points (1 bp = 0.01%)
+  // Formula: principal * rate * days / 365 / 10000
+  principal * rate_bp * duration_days / 365 / 10000
+}
+
+/// Calculate total repayment amount
+pub fn total_repayment(principal: Int, interest: Int) -> Int {
+  principal + interest
+}
+
+/// Convert milliseconds to days
+pub fn ms_to_days(ms: Int) -> Int {
+  ms / 86400000
+}
+
+/// Check if current time is within valid transaction range
+pub fn is_valid_time_range(
+  validity_range: Interval<Int>,
+  target_time: Int,
+) -> Bool {
+  when validity_range.lower_bound.bound_type is {
+    Finite(lower) -> lower <= target_time
+    _ -> False
+  }
+}
+
+/// Check if loan is overdue
+pub fn is_overdue(current_time: Int, due_at: Int) -> Bool {
+  current_time > due_at
+}
+
+/// Verify minimum ADA in output
+pub fn has_min_ada(output_value: Value, min_lovelace: Int) -> Bool {
+  lovelace_of(output_value) >= min_lovelace
+}
+
+/// Calculate new reputation score after successful repayment
+pub fn calculate_new_reputation(
+  current_points: Int,
+  loan_amount: Int,
+  repaid_early: Bool,
+) -> Int {
+  let base_increase = loan_amount / 1000000
+  // 1 point per ADA borrowed
+  let early_bonus =
+    if repaid_early {
+      base_increase / 10
+    } else {
+      0
+    }
+  // 10% bonus for early repayment
+  let new_points = current_points + base_increase + early_bonus
+  // Cap at 10000
+  if new_points > 10000 {
+    10000
+  } else {
+    new_points
+  }
+}
+
+/// Calculate reputation penalty for default
+pub fn calculate_default_penalty(
+  current_points: Int,
+  loan_amount: Int,
+) -> Int {
+  let penalty = loan_amount / 500000
+  // 1 point per 0.5 ADA
+  let new_points = current_points - penalty
+  // Floor at 0
+  if new_points < 0 {
+    0
+  } else {
+    new_points
+  }
+}
+
+/// Verify output pays to specific address
+pub fn pays_to_address(
+  outputs: List<Output>,
+  address: Address,
+  min_amount: Int,
+) -> Bool {
+  list.any(
+    outputs,
+    fn(output) {
+      output.address == address && lovelace_of(output.value) >= min_amount
+    },
+  )
+}

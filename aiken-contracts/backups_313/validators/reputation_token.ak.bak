@@ -1,0 +1,21 @@
+use aiken/list
+use aiken/transaction.{ScriptContext, Transaction}
+use lendada/types.{PenalizeDefault, ReputationRedeemer, UpdateReputation}
+use lendada/validation.{verify_signature}
+
+pub fn validator(redeemer: ReputationRedeemer, ctx: ScriptContext) -> Bool {
+  let tx: Transaction = ctx.transaction
+
+  when redeemer is {
+    UpdateReputation { loan_amount: _, repayment_time, due_time } -> {
+      expect Some(owner_pkh) = list.head(tx.extra_signatories)
+      expect verify_signature(tx.extra_signatories, owner_pkh)
+      repayment_time <= due_time
+    }
+
+    PenalizeDefault { loan_amount: _ } -> {
+      expect Some(_signer) = list.head(tx.extra_signatories)
+      True
+    }
+  }
+}

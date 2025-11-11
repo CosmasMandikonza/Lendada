@@ -1,0 +1,95 @@
+use aiken/hash.{Blake2b_224, Hash}
+use aiken/interval.{Finite, Interval}
+use aiken/list
+use aiken/transaction.{Output}
+use aiken/transaction/credential.{VerificationKey, VerificationKeyCredential}
+use aiken/transaction/value.{Value, lovelace_of}
+
+/// Calculate total interest for a loan
+pub fn calculate_interest(principal: Int, rate_bp: Int, duration_days: Int) -> Int {
+  principal * rate_bp * duration_days / 365 / 10000
+}
+
+/// Calculate total repayment amount
+pub fn total_repayment(principal: Int, interest: Int) -> Int {
+  principal + interest
+}
+
+/// Convert milliseconds to days
+pub fn ms_to_days(ms: Int) -> Int {
+  ms / 86400000
+}
+
+/// Check if current time is within valid transaction range
+pub fn is_valid_time_range(
+  validity_range: Interval<Int>,
+  target_time: Int,
+) -> Bool {
+  when validity_range.lower_bound.bound_type is {
+    Finite(lower) -> lower <= target_time
+    _ -> False
+  }
+}
+
+/// Check if loan is overdue
+pub fn is_overdue(current_time: Int, due_at: Int) -> Bool {
+  current_time > due_at
+}
+
+/// Verify minimum ADA in output
+pub fn has_min_ada(output_value: Value, min_lovelace: Int) -> Bool {
+  lovelace_of(output_value) >= min_lovelace
+}
+
+/// Calculate new reputation score after successful repayment
+pub fn calculate_new_reputation(
+  current_points: Int,
+  loan_amount: Int,
+  repaid_early: Bool,
+) -> Int {
+  let base_increase = loan_amount / 1000000
+  let early_bonus =
+    if repaid_early {
+      base_increase / 10
+    } else {
+      0
+    }
+  let new_points = current_points + base_increase + early_bonus
+  if new_points > 10000 {
+    10000
+  } else {
+    new_points
+  }
+}
+
+/// Calculate reputation penalty for default
+pub fn calculate_default_penalty(
+  current_points: Int,
+  loan_amount: Int,
+) -> Int {
+  let penalty = loan_amount / 500000
+  let new_points = current_points - penalty
+  if new_points < 0 {
+    0
+  } else {
+    new_points
+  }
+}
+
+/// Verify output pays to specific public key hash
+pub fn pays_to_pkh(
+  outputs: List<Output>,
+  pkh: Hash<Blake2b_224, VerificationKey>,
+  min_amount: Int,
+) -> Bool {
+  list.any(
+    outputs,
+    fn(o) {
+      when o.address.payment_credential is {
+        VerificationKeyCredential(hash) ->
+          hash == pkh && lovelace_of(o.value) >= min_amount
+        _ -> False
+      }
+    },
+  )
+}

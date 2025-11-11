@@ -1,0 +1,146 @@
+use aiken/interval.{Finite}
+use aiken/list
+use aiken/transaction.{
+  InlineDatum, Input, ScriptContext, Spend, Transaction,
+}
+use aiken/transaction/credential.{VerificationKeyCredential}
+use aiken/transaction/value.{lovelace_of}
+use lendada/types.{
+  Active, Cancel, Claim, ClaimDefault, Fund, Funded, LoanDatum,
+  LoanRedeemer, Pending, Repay,
+}
+use lendada/utils.{
+  calculate_interest, ms_to_days, total_repayment,
+}
+use lendada/validation.{verify_identity_nft, verify_signature}
+
+pub fn validator(
+  datum: LoanDatum,
+  redeemer: LoanRedeemer,
+  ctx: ScriptContext,
+) -> Bool {
+  let tx: Transaction = ctx.transaction
+
+  when ctx.purpose is {
+    Spend(own_ref) -> {
+      when redeemer is {
+        Fund -> {
+          expect Some(own_input) =
+            list.find(tx.inputs, fn(input) { input.output_reference == own_ref })
+
+          expect datum.status == Pending
+
+          expect Some(lender_pkh) = list.head(tx.extra_signatories)
+          expect verify_signature(tx.extra_signatories, lender_pkh)
+
+          expect Some(continuing_output) =
+            list.find(
+              tx.outputs,
+              fn(output) { output.address == own_input.output.address },
+            )
+
+          let expected_value = datum.principal + datum.collateral
+          expect lovelace_of(continuing_output.value) >= expected_value
+
+          expect InlineDatum(inline_datum) = continuing_output.datum
+          expect continuing_datum: LoanDatum = inline_datum
+          expect continuing_datum.lender == Some(lender_pkh)
+          expect continuing_datum.status == Funded
+
+          True
+        }
+
+        Claim -> {
+          expect datum.status == Funded
+          expect verify_signature(tx.extra_signatories, datum.borrower)
+
+          let (policy, name) = datum.identity_nft
+          expect verify_identity_nft(tx.inputs, policy, name)
+
+          expect list.any(
+            tx.outputs,
+            fn(output) {
+              output.address.payment_credential == VerificationKeyCredential(
+                datum.borrower,
+              ) && lovelace_of(output.value) >= datum.principal
+            },
+          )
+
+          True
+        }
+
+        Repay { amount } -> {
+          expect datum.status == Active
+          expect verify_signature(tx.extra_signatories, datum.borrower)
+
+          let duration_days = ms_to_days(datum.duration)
+          let interest =
+            calculate_interest(datum.principal, datum.interest_rate, duration_days)
+          let total_due = total_repayment(datum.principal, interest)
+
+          expect amount >= total_due
+
+          expect Some(lender_pkh) = datum.lender
+          expect list.any(
+            tx.outputs,
+            fn(output) {
+              output.address.payment_credential == VerificationKeyCredential(
+                lender_pkh,
+              ) && lovelace_of(output.value) >= total_due
+            },
+          )
+
+          expect list.any(
+            tx.outputs,
+            fn(output) {
+              output.address.payment_credential == VerificationKeyCredential(
+                datum.borrower,
+              ) && lovelace_of(output.value) >= datum.collateral
+            },
+          )
+
+          True
+        }
+
+        ClaimDefault -> {
+          expect when tx.validity_range.lower_bound.bound_type is {
+            Finite(lower) -> lower > datum.due_at
+            _ -> False
+          }
+
+          expect Some(lender_pkh) = datum.lender
+          expect verify_signature(tx.extra_signatories, lender_pkh)
+          expect datum.status == Active
+
+          expect list.any(
+            tx.outputs,
+            fn(output) {
+              output.address.payment_credential == VerificationKeyCredential(
+                lender_pkh,
+              ) && lovelace_of(output.value) >= datum.collateral
+            },
+          )
+
+          True
+        }
+
+        Cancel -> {
+          expect datum.status == Pending
+          expect verify_signature(tx.extra_signatories, datum.borrower)
+
+          expect list.any(
+            tx.outputs,
+            fn(output) {
+              output.address.payment_credential == VerificationKeyCredential(
+                datum.borrower,
+              ) && lovelace_of(output.value) >= datum.collateral
+            },
+          )
+
+          True
+        }
+      }
+    }
+    _ -> False
+  }
+}
